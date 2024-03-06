@@ -185,3 +185,5 @@ This may include:
 - Measuring the time
 
 ## Other usefull tasks [Bonus Points]
+
+PyQt5 for building custom GUI, parameter tuning through user input, and **visualizing the performance in real-time**.
