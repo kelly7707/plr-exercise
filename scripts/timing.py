@@ -35,6 +35,9 @@ class Net(nn.Module):
 
 
 def main():
+    """
+    Demonstrates the use of `CpuTimer` and `Timer` for timing.
+    """
     # Training settings
     parser = argparse.ArgumentParser(description="PyTorch MNIST Example")
     parser.add_argument(

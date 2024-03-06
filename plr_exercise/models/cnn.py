@@ -4,6 +4,13 @@ import torch.nn.functional as F
 
 
 class Net(nn.Module):
+    """
+    A convolutional neural network.
+
+    The network includes two convolutional layers with ReLU and max pooling, 
+    followed by two dropout layers and two fully connected layers, 
+    and finally a log softmax output layer.
+    """
     def __init__(self):
 
         super(Net, self).__init__()
