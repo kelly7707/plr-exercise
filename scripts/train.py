@@ -8,13 +8,39 @@ from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 from plr_exercise.models.cnn import Net
 import wandb
+import optuna
 
 
 wandb.login()
-run = wandb.init(project="prl_exercise")
+run = wandb.init(project="prl_exercise", dir="./results")
 
 
-def train(args, model, device, train_loader, optimizer, epoch):
+def get_best_params(args, model, device, train_loader, test_loader):
+    def objective(trial):
+        # Hyperparameters to be tuned by Optuna
+        lr = trial.suggest_float("lr", 5e-4, 1, log=True)
+        epochs = trial.suggest_int("epochs", 1, 20)
+
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+        scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
+
+        for epoch in range(1, epochs + 1):
+            train(args, model, device, train_loader, optimizer, epoch, print_info=False)
+            test_loss = test(model, device, test_loader, epoch, print_info=False)
+            scheduler.step()
+
+            trial.report(test_loss, epoch)
+
+        return test_loss
+
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective, n_trials=20)
+    best_lr = study.best_params["lr"]
+    best_epochs = study.best_params["epochs"]
+    return best_lr, best_epochs
+
+
+def train(args, model, device, train_loader, optimizer, epoch, print_info=True):
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
 
@@ -24,22 +50,24 @@ def train(args, model, device, train_loader, optimizer, epoch):
         loss = F.nll_loss(output, target)
         loss.backward()
         optimizer.step()
+
         if batch_idx % args.log_interval == 0:
-            print(
-                "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
-                    epoch,
-                    batch_idx * len(data),
-                    len(train_loader.dataset),
-                    100.0 * batch_idx / len(train_loader),
-                    loss.item(),
+            if print_info:
+                print(
+                    "Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}".format(
+                        epoch,
+                        batch_idx * len(data),
+                        len(train_loader.dataset),
+                        100.0 * batch_idx / len(train_loader),
+                        loss.item(),
+                    )
                 )
-            )
             wandb.log({"training_loss": loss.item(), "epoch": epoch})
             if args.dry_run:
                 break
 
 
-def test(model, device, test_loader, epoch):
+def test(model, device, test_loader, epoch, print_info=True):
     model.eval()
     test_loss = 0
     correct = 0
@@ -55,12 +83,14 @@ def test(model, device, test_loader, epoch):
 
     test_loss /= len(test_loader.dataset)
 
-    print(
-        "\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
-            test_loss, correct, len(test_loader.dataset), 100.0 * correct / len(test_loader.dataset)
+    if print_info:
+        print(
+            "\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n".format(
+                test_loss, correct, len(test_loader.dataset), 100.0 * correct / len(test_loader.dataset)
+            )
         )
-    )
     wandb.log({"test_loss": test_loss, "epoch": epoch})
+    return test_loss
 
 
 def main():
@@ -110,13 +140,16 @@ def main():
     test_loader = torch.utils.data.DataLoader(dataset2, **test_kwargs)
 
     model = Net().to(device)
-    optimizer = optim.Adam(model.parameters(), lr=args.lr)
 
-    scheduler = StepLR(optimizer, step_size=1, gamma=args.gamma)
-    for epoch in range(args.epochs):
-        train(args, model, device, train_loader, optimizer, epoch)
+    best_lr, best_epochs = get_best_params(args, model, device, train_loader, test_loader)
+
+    best_optimizer = optim.Adam(model.parameters(), lr=best_lr)
+    best_scheduler = StepLR(best_optimizer, step_size=1, gamma=args.gamma)
+
+    for epoch in range(best_epochs):
+        train(args, model, device, train_loader, best_optimizer, epoch)
         test(model, device, test_loader, epoch)
-        scheduler.step()
+        best_scheduler.step()
 
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
