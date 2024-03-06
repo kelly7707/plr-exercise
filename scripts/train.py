@@ -16,6 +16,19 @@ run = wandb.init(project="prl_exercise", dir="./results")
 
 
 def get_best_params(args, model, device, train_loader, test_loader):
+    """
+    Performs a hyperparameter search using Optuna to find the best learning rate and number of epochs.
+
+    Parameters:
+    - args: Command-line arguments.
+    - model: The model to be trained.
+    - device: The computing device.
+    - train_loader: DataLoader for the training data.
+    - test_loader: DataLoader for the test data.
+    
+    Returns:
+    Tuple[float, int]: The best learning rate and number of epochs found by Optuna.
+    """
     def objective(trial):
         # Hyperparameters to be tuned by Optuna
         lr = trial.suggest_float("lr", 5e-4, 1, log=True)
@@ -41,6 +54,9 @@ def get_best_params(args, model, device, train_loader, test_loader):
 
 
 def train(args, model, device, train_loader, optimizer, epoch, print_info=True):
+    """
+    Trains the model for one epoch.
+    """
     model.train()
     for batch_idx, (data, target) in enumerate(train_loader):
 
@@ -68,6 +84,9 @@ def train(args, model, device, train_loader, optimizer, epoch, print_info=True):
 
 
 def test(model, device, test_loader, epoch, print_info=True):
+    """
+    Tests the model on the test dataset.
+    """
     model.eval()
     test_loss = 0
     correct = 0
@@ -94,6 +113,14 @@ def test(model, device, test_loader, epoch, print_info=True):
 
 
 def main():
+    """
+    Main function of training and testing process.
+    
+    Parses command-line arguments, loads the MNIST dataset, initializes the model, 
+    performs hyperparameter optimization using Optuna, trains the model with the best-found parameters,
+    and logs the training and testing loss with wandb.
+    
+    """
     # Training settings
     parser = argparse.ArgumentParser(description="PyTorch MNIST Example")
     parser.add_argument(
