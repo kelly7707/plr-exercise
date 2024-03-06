@@ -7,6 +7,11 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.optim.lr_scheduler import StepLR
 from plr_exercise.models.cnn import Net
+import wandb
+
+
+wandb.login()
+run = wandb.init(project="prl_exercise")
 
 
 def train(args, model, device, train_loader, optimizer, epoch):
@@ -29,6 +34,7 @@ def train(args, model, device, train_loader, optimizer, epoch):
                     loss.item(),
                 )
             )
+            wandb.log({"training_loss": loss.item(), "epoch": epoch})
             if args.dry_run:
                 break
 
@@ -54,6 +60,7 @@ def test(model, device, test_loader, epoch):
             test_loss, correct, len(test_loader.dataset), 100.0 * correct / len(test_loader.dataset)
         )
     )
+    wandb.log({"test_loss": test_loss, "epoch": epoch})
 
 
 def main():
@@ -113,6 +120,10 @@ def main():
 
     if args.save_model:
         torch.save(model.state_dict(), "mnist_cnn.pt")
+
+    artifact = wandb.Artifact("code", type="code")
+    artifact.add_file("scripts/train.py")
+    wandb.log_artifact(artifact)
 
 
 if __name__ == "__main__":
